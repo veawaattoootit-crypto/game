@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="th" class="h-full bg-slate-950">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR Scratch Blocks Catcher - ภารกิจพิชิตบล็อกคำสั่ง Scratch</title>
+
+  <!-- Google Fonts for Friendly Thai & Cyber Arcade Aesthetics -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Prompt:wght@300;400;600;700&family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Prompt', 'Sarabun', 'sans-serif'],
+            display: ['Fredoka', 'Prompt', 'sans-serif'],
+          },
+          colors: {
+            scratch: {
+              motion: '#4C97FF',
+              events: '#FFBF00',
+              control: '#FFAB19',
+              bgNavy: '#0F172A',
+              cardBg: '#1E293B',
+              cyber: '#06B6D4'
+            }
+          },
+          animation: {
+            'pulse-glow': 'pulseGlow 2s infinite',
+            'bounce-gentle': 'bounceGentle 1.5s infinite',
+            'float': 'float 3s ease-in-out infinite',
+            'spin-slow': 'spin 8s linear infinite',
+            'wiggle': 'wiggle 0.5s ease-in-out infinite'
+          },
+          keyframes: {
+            pulseGlow: {
+              '0%, 100%': { boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)' },
+              '50%': { boxShadow: '0 0 30px rgba(59, 130, 246, 0.9)' }
+            },
+            bounceGentle: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-6px)' }
+            },
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-10px)' }
+            },
+            wiggle: {
+              '0%, 100%': { transform: 'rotate(-3deg)' },
+              '50%': { transform: 'rotate(3deg)' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- MediaPipe Hands & Camera Utils CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .no-select {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Background Theme Gradients */
+    .theme-lab {
+      background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%);
+    }
+    .theme-cyber {
+      background: radial-gradient(circle at center, #0284c7 0%, #030712 100%);
+    }
+    .theme-space {
+      background: radial-gradient(circle at center, #581c87 0%, #020617 100%);
+    }
+  </style>
+</head>
+
+<body class="h-full w-full overflow-hidden text-slate-100 font-sans select-none bg-slate-950 no-select">
+
+  <div id="appContainer" class="relative w-full h-full flex flex-col justify-between overflow-hidden theme-lab transition-all duration-700">
+
+    <!-- Webcam Feed Video Element -->
+    <video id="webcamVideo" autoplay muted playsinline class="hidden"></video>
+    
+    <!-- AR Interaction Overlay Canvas -->
+    <canvas id="gameCanvas" class="absolute inset-0 w-full h-full z-10 cursor-pointer"></canvas>
+
+    <!-- Graphic Backdrop when Camera is Off -->
+    <div id="fallbackBg" class="absolute inset-0 z-0 flex flex-col items-center justify-center opacity-100 transition-opacity duration-500 pointer-events-none">
+      <div class="absolute inset-0 opacity-15 bg-[radial-gradient(#3b82f6_1.5px,transparent_1.5px)] [background-size:28px_28px]"></div>
+    </div>
+
+    <!-- TOP HEADER / HUD BAR -->
+    <header class="relative z-20 w-full p-2.5 md:p-3 flex justify-between items-center glass-panel shadow-2xl border-b border-white/10">
+      <!-- Left Branding & Stage Banner -->
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 md:w-11 md:h-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-cyan-500 to-amber-400 flex items-center justify-center shadow-lg shadow-cyan-500/30 text-2xl animate-pulse">
+          🧩
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-display font-bold text-base md:text-lg bg-clip-text text-transparent bg-gradient-to-r from-amber-300 via-cyan-300 to-emerald-300 leading-tight">
+              AR SCRATCH BLOCKS
+            </h1>
+            <span id="stageBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-900/90 text-indigo-300 border border-indigo-500/40 uppercase">
+              ด่าน 1: Digital Lab
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-300 font-medium hidden sm:block">ภารกิจพิชิตบล็อกคำสั่ง • วิทยาการคำนวณ ป.4</p>
+        </div>
+      </div>
+
+      <!-- Center Dynamic Mission & Time Bar -->
+      <div class="flex flex-col items-center gap-1 w-1/3 max-w-xs">
+        <div class="flex items-center justify-between w-full text-xs font-semibold">
+          <span class="flex items-center gap-1 text-slate-200">
+            ⏳ <span id="timerText" class="text-amber-400 font-display text-sm md:text-base">60</span>s
+          </span>
+          <span id="handStatusBadge" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-slate-500 inline-block animate-pulse"></span>
+            <span>รอสัญญาณกล้อง</span>
+          </span>
+        </div>
+        <div class="w-full bg-slate-900/90 rounded-full h-2 overflow-hidden border border-slate-700/60 shadow-inner">
+          <div id="timeProgressBar" class="bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 h-full w-full transition-all duration-300"></div>
+        </div>
+      </div>
+
+      <!-- Right HUD: Combo, Stars, Score & Controls -->
+      <div class="flex items-center gap-2">
+        <!-- Combo Badge -->
+        <div id="comboBadge" class="hidden sm:flex bg-gradient-to-r from-amber-500 to-rose-500 text-slate-950 font-display font-black text-xs md:text-sm px-2.5 py-1 rounded-xl shadow-lg items-center gap-1 animate-bounce">
+          🔥 <span id="comboText">Combo x1</span>
+        </div>
+
+        <!-- Score & Coins Display -->
+        <div class="bg-slate-900/90 border border-amber-500/40 px-3 py-1 md:px-4 md:py-1.5 rounded-2xl flex items-center gap-3 shadow-inner">
+          <div class="flex items-center gap-1 text-amber-300">
+            <span class="text-sm md:text-base">⭐</span>
+            <span id="scoreText" class="font-display text-base md:text-xl font-bold">0</span>
+          </div>
+          <div class="h-4 w-px bg-slate-700"></div>
+          <div class="flex items-center gap-1 text-amber-400">
+            <span class="text-xs md:text-sm">🪙</span>
+            <span id="coinText" class="font-display text-xs md:text-sm font-semibold">0</span>
+          </div>
+        </div>
+
+        <!-- Quick Action Buttons -->
+        <button id="pauseBtn" onclick="togglePause()" class="p-2 md:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-slate-700 transition active:scale-95" title="พักเกม">
+          ⏸️
+        </button>
+        <button id="cameraToggleBtn" onclick="toggleCamera()" class="p-2 md:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-400 border border-slate-700 transition active:scale-95" title="สลับกล้อง">
+          📷
+        </button>
+        <button id="soundBtn" onclick="toggleSound()" class="p-2 md:p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition active:scale-95" title="ปิด/เปิดเสียง">
+          🔊
+        </button>
+      </div>
+    </header>
+
+    <!-- ACTIVE MISSION BANNER & POWERUP BAR -->
+    <div class="relative z-20 px-4 pt-2 flex justify-between items-center pointer-events-none">
+      <!-- Mission Box -->
+      <div id="missionBox" class="pointer-events-auto glass-panel px-3.5 py-2 rounded-2xl border border-cyan-500/30 flex items-center gap-2.5 shadow-lg max-w-xs md:max-w-md">
+        <div class="text-xl md:text-2xl animate-float">🎯</div>
+        <div class="text-left">
+          <div class="text-[10px] text-cyan-300 font-bold uppercase tracking-wider">ภารกิจประจำด่าน</div>
+          <div id="missionDescText" class="text-xs md:text-sm font-bold text-white leading-snug">
+            จัดบล็อก Motion ลงตะกร้าให้ถูก 3 ชิ้น
+          </div>
+        </div>
+        <div class="ml-2 px-2 py-0.5 rounded-lg bg-slate-900 border border-cyan-400/40 font-display text-xs text-cyan-300 font-bold" id="missionProgressText">
+          0/3
+        </div>
+      </div>
+
+      <!-- Active Powerup Badges -->
+      <div id="powerupStatusBar" class="flex gap-2 pointer-events-auto">
+        <!-- Powerup items automatically render here -->
+      </div>
+    </div>
+
+    <!-- BOTTOM BASKETS CONTAINER (Target Drop Zones) -->
+    <div class="relative z-20 w-full px-4 md:px-12 pb-3 grid grid-cols-2 gap-4 md:gap-8 pointer-events-none">
+      
+      <!-- Motion Basket (Left - Blue) -->
+      <div id="basketMotion" class="pointer-events-auto rounded-3xl p-3.5 md:p-5 transition-all duration-300 border-2 border-scratch-motion/70 bg-gradient-to-t from-blue-950/90 via-slate-900/85 to-slate-900/70 backdrop-blur-md shadow-lg shadow-blue-500/20 flex flex-col items-center justify-between min-h-[110px] md:min-h-[140px] relative overflow-hidden group">
+        <div class="absolute inset-0 bg-scratch-motion/15 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <div class="flex items-center gap-2 z-10">
+          <span class="text-2xl md:text-3xl animate-bounce-gentle">🟦</span>
+          <span class="font-display text-base md:text-2xl font-bold text-scratch-motion">MOTION</span>
+        </div>
+        <div class="text-xs text-blue-200/90 font-medium text-center z-10 bg-slate-950/60 px-3 py-1 rounded-full border border-blue-500/30">
+          บล็อกการเคลื่อนที่ • ทิศทาง • พิกัด
+        </div>
+        <div class="text-[10px] text-blue-400/80 z-10">
+          (ลากการ์ดมาวางที่นี่)
+        </div>
+      </div>
+
+      <!-- Events & Control Basket (Right - Orange/Yellow) -->
+      <div id="basketEventsControl" class="pointer-events-auto rounded-3xl p-3.5 md:p-5 transition-all duration-300 border-2 border-scratch-events/70 bg-gradient-to-t from-amber-950/90 via-slate-900/85 to-slate-900/70 backdrop-blur-md shadow-lg shadow-amber-500/20 flex flex-col items-center justify-between min-h-[110px] md:min-h-[140px] relative overflow-hidden group">
+        <div class="absolute inset-0 bg-scratch-events/15 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <div class="flex items-center gap-2 z-10">
+          <span class="text-2xl md:text-3xl animate-bounce-gentle">🟧</span>
+          <span class="font-display text-base md:text-2xl font-bold text-scratch-events">EVENTS & CONTROL</span>
+        </div>
+        <div class="text-xs text-amber-200/90 font-medium text-center z-10 bg-slate-950/60 px-3 py-1 rounded-full border border-amber-500/30">
+          บล็อกเหตุการณ์ • วนลูป • เงื่อนไข
+        </div>
+        <div class="text-[10px] text-amber-400/80 z-10">
+          (ลากการ์ดมาวางที่นี่)
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ==================== MODALS & OVERLAYS ==================== -->
+
+    <!-- 1. START SCREEN MODAL -->
+    <div id="startModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+      <div class="max-w-xl w-full glass-panel rounded-3xl p-6 md:p-8 text-center border border-white/20 shadow-2xl relative overflow-hidden">
+        <div class="absolute -top-20 -left-20 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-20 -right-20 w-48 h-48 bg-amber-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="inline-block p-4 bg-slate-900/80 rounded-2xl border border-cyan-500/30 mb-3 shadow-inner">
+          <div class="text-5xl md:text-6xl animate-float">🤖🧩</div>
+        </div>
+
+        <h2 class="font-display text-3xl md:text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-amber-300 via-cyan-300 to-emerald-300 mb-1">
+          AR SCRATCH BLOCKS
+        </h2>
+        <p class="text-lg font-bold text-cyan-300 mb-2">ภารกิจพิชิตบล็อกคำสั่งผจญภัย</p>
+        <p class="text-xs md:text-sm text-slate-300 mb-5 leading-relaxed">
+          คว้าการ์ดคำสั่ง Scratch กลางอากาศด้วยมือของคุณ! สะสมเหรียญ ทำคอมโบ และพิชิตด่านต่างๆ
+        </p>
+
+        <!-- Gameplay Guide -->
+        <div class="grid grid-cols-2 gap-3 text-left mb-5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800 text-xs md:text-sm">
+          <div class="flex items-start gap-2">
+            <span class="text-xl">🤌</span>
+            <div>
+              <span class="font-bold text-cyan-300">ท่าทางจีบนิ้ว / แตะ:</span>
+              <p class="text-slate-300 text-[11px]">จีบนิ้วโป้งกับนิ้วชี้เข้าหากัน หรือนำปลายนิ้วชี้จ่อการ์ดเพื่อหยิบ</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="text-lg">⭐</span>
+            <div>
+              <span class="font-bold text-amber-300">สะสมไอเทมพิเศษ:</span>
+              <p class="text-slate-300 text-[11px]">เก็บนาฬิกาทราย ⏳ แม่เหล็ก 🧲 และโล่ 🛡️ ช่วยเล่น</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+          <button onclick="openTutorialModal()" class="w-full sm:w-1/2 py-3 px-5 rounded-2xl bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 border border-slate-600 text-slate-200 font-bold text-sm transition transform active:scale-95 shadow-lg">
+            📖 วิธีเล่นและท่ามือ
+          </button>
+          <button onclick="requestCameraAndStart()" class="w-full sm:w-1/2 py-3 px-5 rounded-2xl bg-gradient-to-r from-cyan-600 via-blue-600 to-amber-500 hover:from-cyan-500 hover:to-amber-400 text-slate-950 font-extrabold text-base transition transform hover:scale-105 active:scale-95 shadow-xl shadow-cyan-500/20 flex items-center justify-center gap-2">
+            🚀 เริ่มเล่นด้วยกล้อง AR
+          </button>
+        </div>
+
+        <button onclick="switchToMouseMode()" class="w-full mt-3 py-2 px-4 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-amber-300 text-xs font-semibold border border-amber-500/30 transition flex items-center justify-center gap-2">
+          🖱️ สลับใช้โหมดเมาส์ / สัมผัสหน้าจอแทน
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. TUTORIAL MODAL -->
+    <div id="tutorialModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md hidden">
+      <div class="max-w-lg w-full glass-panel rounded-3xl p-6 text-center border border-white/20 shadow-2xl space-y-4">
+        <h3 class="font-display text-2xl font-bold text-cyan-300">📖 วิธีเล่นและกติกา</h3>
+        
+        <div class="space-y-3 text-left text-xs md:text-sm text-slate-200 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
+          <div class="flex gap-3 items-center">
+            <span class="text-2xl">🟦</span>
+            <div><b class="text-blue-400">MOTION:</b> บล็อกเคลื่อนที่ เคลื่อนไหว หมุนตัว หันทิศทาง เช่น <code>move 10 steps</code></div>
+          </div>
+          <div class="flex gap-3 items-center">
+            <span class="text-2xl">🟧</span>
+            <div><b class="text-amber-400">EVENTS & CONTROL:</b> บล็อกเหตุการณ์และการควบคุม เช่น <code>when green flag clicked</code>, <code>repeat 10</code></div>
+          </div>
+          <div class="flex gap-3 items-center">
+            <span class="text-2xl">⚡</span>
+            <div><b class="text-emerald-400">COMBO:</b> แยกการ์ดถูกต่อเนื่องเพื่อเพิ่มตัวคูณคะแนนสูงสุด x5!</div>
+          </div>
+          <div class="flex gap-3 items-center">
+            <span class="text-2xl">👾</span>
+            <div><b class="text-rose-400">BUG CHALLENGES:</b> เผชิญหน้ากับเจ้าบั๊กก่อกวน ตอบคำถาม Scratch เพื่อรับโบนัสใหญ่!</div>
+          </div>
+        </div>
+
+        <button onclick="closeTutorialModal()" class="w-full py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold transition">
+          เข้าใจแล้ว! กลับสู่หน้าหลัก
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. BUG CHALLENGE QUIZ MODAL -->
+    <div id="bugQuizModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md hidden">
+      <div class="max-w-md w-full glass-panel rounded-3xl p-6 text-center border border-rose-500/50 shadow-2xl relative overflow-hidden animate-wiggle">
+        <div class="text-5xl mb-2">👾</div>
+        <div class="px-3 py-1 rounded-full bg-rose-950/80 text-rose-300 border border-rose-500/40 inline-block text-xs font-bold mb-2">
+          ด่านท้าทายจอมบั๊ก! (Bug Attack)
+        </div>
+        <h3 id="bugQuestionTitle" class="font-display text-lg font-bold text-white mb-4">
+          ถ้าต้องการให้สคริปต์ทำงานเมื่อคลิกปุ่มธงเขียว ต้องใช้บล็อกคำสั่งใด?
+        </h3>
+
+        <!-- Question Choice Options -->
+        <div id="bugQuizOptions" class="space-y-2.5 mb-4 text-xs md:text-sm">
+          <!-- Quiz buttons dynamically injected -->
+        </div>
+
+        <p class="text-[11px] text-slate-400">ตอบถูกต้องเพื่อกำจัดบั๊กและรับโบนัส +50 คะแนน!</p>
+      </div>
+    </div>
+
+    <!-- 4. PAUSE MODAL -->
+    <div id="pauseModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md hidden">
+      <div class="max-w-xs w-full glass-panel rounded-3xl p-6 text-center border border-white/20 shadow-2xl space-y-4">
+        <div class="text-4xl">⏸️</div>
+        <h3 class="font-display text-2xl font-bold text-amber-300">พักเกมชั่วคราว</h3>
+        <div class="space-y-2">
+          <button onclick="togglePause()" class="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold transition">
+            ▶️ เล่นต่อ
+          </button>
+          <button onclick="confirmRestart()" class="w-full py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition text-xs">
+            🔄 เริ่มเล่นด่านนี้ใหม่
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. SUMMARY MODAL -->
+    <div id="summaryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-lg hidden">
+      <div class="max-w-md w-full glass-panel rounded-3xl p-6 md:p-8 text-center border border-white/20 shadow-2xl relative overflow-hidden">
+        <div id="summaryBadge" class="inline-block p-4 rounded-full bg-amber-500/20 text-5xl mb-2 border border-amber-500/40">
+          🏆
+        </div>
+
+        <div id="starRatingContainer" class="text-3xl my-1 tracking-widest">
+          ⭐⭐⭐
+        </div>
+
+        <h2 id="summaryTitle" class="font-display text-2xl md:text-3xl font-bold text-amber-300 mb-1">
+          ภารกิจสำเร็จ!
+        </h2>
+        <p id="summaryMotivation" class="text-xs md:text-sm text-slate-300 mb-5">
+          เก่งมาก! คุณเชี่ยวชาญบล็อก Scratch แล้ว
+        </p>
+
+        <!-- Final Performance Stats -->
+        <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 mb-5 space-y-3">
+          <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+            <span class="text-slate-400 text-xs md:text-sm">คะแนนรวมทั้งหมด</span>
+            <span id="finalScore" class="font-display text-2xl md:text-3xl font-extrabold text-amber-400">0</span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 text-center pt-1">
+            <div class="bg-emerald-950/40 p-2 rounded-xl border border-emerald-500/30">
+              <div class="text-[10px] text-emerald-400">ตอบถูก</div>
+              <div id="finalCorrect" class="font-bold text-base text-emerald-300">0</div>
+            </div>
+
+            <div class="bg-amber-950/40 p-2 rounded-xl border border-amber-500/30">
+              <div class="text-[10px] text-amber-400">เหรียญทอง</div>
+              <div id="finalCoins" class="font-bold text-base text-amber-300">0</div>
+            </div>
+
+            <div class="bg-blue-950/40 p-2 rounded-xl border border-blue-500/30">
+              <div class="text-[10px] text-blue-400">ความแม่นยำ</div>
+              <div id="finalAccuracy" class="font-bold text-base text-blue-300">0%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex gap-3">
+          <button onclick="resetToMainMenu()" class="w-1/2 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs md:text-sm transition">
+            🏠 หน้าหลัก
+          </button>
+          <button id="nextLevelBtn" onclick="nextStageOrRestart()" class="w-1/2 py-3 rounded-2xl bg-gradient-to-r from-cyan-600 via-blue-600 to-amber-500 hover:from-cyan-500 hover:to-amber-400 text-slate-950 font-extrabold text-xs md:text-sm transition transform active:scale-95 shadow-lg">
+            🚀 ด่านถัดไป
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. CAMERA ERROR MODAL -->
+    <div id="cameraErrorModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md hidden">
+      <div class="max-w-md w-full glass-panel rounded-3xl p-6 text-center border border-rose-500/40 shadow-2xl">
+        <div class="text-4xl mb-2">⚠️</div>
+        <h3 class="font-display text-lg font-bold text-rose-400 mb-2">ไม่สามารถสตรีมภาพจากกล้องได้</h3>
+        <p id="cameraErrorMessage" class="text-xs text-slate-300 mb-4 leading-relaxed">
+          เบราว์เซอร์ปฏิเสธสิทธิ์การใช้งานกล้อง หรืออุปกรณ์ไม่มีกล้องติดตั้งอยู่
+        </p>
+        <button onclick="switchToMouseMode()" class="w-full py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold transition shadow-lg text-sm">
+          🖱️ เข้าเล่นโหมดสัมผัสหน้าจอ / เมาส์แทน
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* ==========================================================================
+       SECTION 1: GAME DATA & SCRATCH BLOCK DATABASE
+       ========================================================================== */
+
+    const SCRATCH_BLOCKS = [
+      // Motion Category (Blue)
+      { id: 'm1', name: 'move 10 steps', category: 'Motion', color: '#2563EB', icon: '🏃', desc: 'สั่งให้ตัวละครเคลื่อนที่ไปข้างหน้า 10 ก้าว' },
+      { id: 'm2', name: 'turn ↻ 15 degrees', category: 'Motion', color: '#2563EB', icon: '🔄', desc: 'หมุนตัวละครตามเข็มนาฬิกา 15 องศา' },
+      { id: 'm3', name: 'go to x: 0 y: 0', category: 'Motion', color: '#2563EB', icon: '📍', desc: 'ย้ายตัวละครไปยังพิกัด X:0, Y:0 ทันที' },
+      { id: 'm4', name: 'change x by 10', category: 'Motion', color: '#2563EB', icon: '➡️', desc: 'เพิ่มค่าตำแหน่งแกน X ไปทางขวา 10 หน่วย' },
+      { id: 'm5', name: 'glide 1 secs to random', category: 'Motion', color: '#2563EB', icon: '✈️', desc: 'ร่อนตัวละครไปยังตำแหน่งสุ่มในเวลา 1 วินาที' },
+      { id: 'm6', name: 'point in direction 90', category: 'Motion', color: '#2563EB', icon: '🧭', desc: 'หันตัวละครไปทางทิศตะวันออก (90 องศา)' },
+
+      // Events Category (Yellow/Orange)
+      { id: 'e1', name: 'when 🏁 clicked', category: 'EventsControl', realCat: 'Events', color: '#D97706', icon: '🏁', desc: 'เริ่มทำงานเมื่อกดปุ่มธงเขียว' },
+      { id: 'e2', name: 'when [space] key pressed', category: 'EventsControl', realCat: 'Events', color: '#D97706', icon: '⌨️', desc: 'เริ่มทำงานเมื่อกดปุ่ม Spacebar บนคีย์บอร์ด' },
+      { id: 'e3', name: 'broadcast message1', category: 'EventsControl', realCat: 'Events', color: '#D97706', icon: '📢', desc: 'ส่งสัญญาณแจ้งเหตุการณ์ไปยังตัวละครอื่น' },
+
+      // Control Category (Orange)
+      { id: 'c1', name: 'wait 1 seconds', category: 'EventsControl', realCat: 'Control', color: '#D97706', icon: '⏱️', desc: 'หยุดรอเวลาที่กำหนดก่อนทำคำสั่งถัดไป' },
+      { id: 'c2', name: 'repeat 10', category: 'EventsControl', realCat: 'Control', color: '#D97706', icon: '🔁', desc: 'ทำคำสั่งซ้ำวนลูปจำนวน 10 ครั้ง' },
+      { id: 'c3', name: 'if <...> then', category: 'EventsControl', realCat: 'Control', color: '#D97706', icon: '❓', desc: 'ตรวจสอบเงื่อนไข ถ้าเป็นจริงจึงจะทำงาน' }
+    ];
+
+    const BUG_QUIZZES = [
+      {
+        question: "ถ้าต้องการให้สคริปต์เริ่มทำงานเมื่อคลิกธงเขียว ต้องใช้คำสั่งในหมวดใด?",
+        options: [
+          { text: "🟧 Events (เหตุการณ์)", correct: true },
+          { text: "🟦 Motion (การเคลื่อนที่)", correct: false },
+          { text: "🟩 Sensing (การรับรู้)", correct: false }
+        ]
+      },
+      {
+        question: "บล็อกคำสั่ง 'move 10 steps' ทำหน้าที่อะไร?",
+        options: [
+          { text: "ขยายขนาดตัวละคร 10 เท่า", correct: false },
+          { text: "สั่งให้ตัวละครเดินหน้า 10 ก้าว", correct: true },
+          { text: "หมุนตัวละคร 10 องศา", correct: false }
+        ]
+      },
+      {
+        question: "หากต้องการสั่งให้สคริปต์ทำงานซ้ำ 10 ครั้ง ต้องใช้บล็อกคำสั่งใด?",
+        options: [
+          { text: "wait 1 seconds", correct: false },
+          { text: "if <...> then", correct: false },
+          { text: "repeat 10", correct: true }
+        ]
+      }
+    ];
+
+    // POWERUP TYPES
+    const POWERUP_TYPES = [
+      { id: 'slow', name: 'นาฬิกาทราย', icon: '⏳', color: '#06B6D4', desc: 'ชะลอความเร็วของบล็อก 8 วินาที' },
+      { id: 'magnet', name: 'แม่เหล็ก', icon: '🧲', color: '#EC4899', desc: 'ดึงบล็อกเข้าหาตะกร้าที่ถูกต้อง' },
+      { id: 'shield', name: 'โล่ป้องกัน', icon: '🛡️', color: '#10B981', desc: 'ป้องกันการตอบผิด 1 ครั้ง' }
+    ];
+
+    /* ==========================================================================
+       SECTION 2: GLOBAL ENGINE STATE
+       ========================================================================== */
+
+    const state = {
+      gameStatus: 'START', // 'START', 'PLAYING', 'PAUSED', 'BUG_QUIZ', 'GAMEOVER'
+      controlMode: 'AR',   // 'AR' or 'MOUSE'
+      cameraActive: false,
+      
+      // Stage & Progress
+      currentStage: 1, // 1: Digital Lab, 2: Cyber City, 3: Space
+      score: 0,
+      coins: 0,
+      correctCount: 0,
+      wrongCount: 0,
+      combo: 0,
+      maxCombo: 0,
+      timeLeft: 60,
+      timerInterval: null,
+      soundMuted: false,
+
+      // Mission System
+      missionTarget: 3,
+      missionCurrent: 0,
+
+      // Active Powerups
+      activePowerups: {
+        slowTimer: 0,
+        magnetTimer: 0,
+        shieldActive: false
+      },
+
+      // Hand Tracking & Pinch Detection
+      handDetected: false,
+      isPinching: false,
+      rawHand: { x: 0, y: 0 },
+      smoothHand: { x: 0, y: 0 },
+      lerpFactor: 0.35,
+
+      // Objects & Particles
+      currentCard: null,
+      activePowerupItem: null,
+      particles: [],
+      floatingTexts: [],
+
+      // Helper Companion Mascot ("พี่โรบี้")
+      mascot: {
+        face: '😀',
+        message: 'สวัสดีครับ! มาช่วยพี่โรบี้จัดบล็อกคำสั่ง Scratch กันนะ',
+        timer: null
+      },
+
+      // Canvas / WebGL context references
+      canvas: null,
+      ctx: null,
+      camera: null,
+      hands: null
+    };
+
+    /* Web Audio API Sound Synthesizer */
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playTone(freq, type = 'sine', duration = 0.15, vol = 0.15) {
+      if (state.soundMuted) return;
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch(e) {}
+    }
+
+    function playSoundEffect(type) {
+      if (state.soundMuted) return;
+      if (type === 'grab') {
+        playTone(580, 'sine', 0.08, 0.12);
+      } else if (type === 'correct') {
+        playTone(523.25, 'triangle', 0.08, 0.2);
+        setTimeout(() => playTone(659.25, 'triangle', 0.08, 0.2), 60);
+        setTimeout(() => playTone(783.99, 'triangle', 0.12, 0.2), 120);
+        setTimeout(() => playTone(1046.50, 'triangle', 0.2, 0.25), 180);
+      } else if (type === 'combo') {
+        playTone(880, 'sine', 0.1, 0.2);
+        setTimeout(() => playTone(1174, 'sine', 0.2, 0.25), 90);
+      } else if (type === 'wrong') {
+        playTone(180, 'sawtooth', 0.12, 0.18);
+        setTimeout(() => playTone(130, 'sawtooth', 0.22, 0.18), 100);
+      } else if (type === 'powerup') {
+        playTone(440, 'sine', 0.1, 0.15);
+        setTimeout(() => playTone(659, 'sine', 0.1, 0.15), 80);
+        setTimeout(() => playTone(880, 'sine', 0.2, 0.2), 160);
+      } else if (type === 'gameover') {
+        playTone(440, 'sine', 0.15);
+        setTimeout(() => playTone(349, 'sine', 0.15), 150);
+        setTimeout(() => playTone(293, 'sine', 0.3), 300);
+      }
+    }
+
+    function toggleSound() {
+      state.soundMuted = !state.soundMuted;
+      document.getElementById('soundBtn').innerText = state.soundMuted ? '🔇' : '🔊';
+    }
+
+    /* ==========================================================================
+       SECTION 3: AR HAND TRACKING & PINCH GESTURE RECOGNITION
+       ========================================================================== */
+
+    function initHandTracking() {
+      state.hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+      state.hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.65,
+        minTrackingConfidence: 0.65
+      });
+
+      state.hands.onResults(onHandResults);
+    }
+
+    function onHandResults(results) {
+      const badge = document.getElementById('handStatusBadge');
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        state.handDetected = true;
+        
+        const landmarks = results.multiHandLandmarks[0];
+        const indexTip = landmarks[8];
+        const thumbTip = landmarks[4];
+
+        // Measure distance between index tip & thumb tip for Pinch Gesture
+        const dx = indexTip.x - thumbTip.x;
+        const dy = indexTip.y - thumbTip.y;
+        const pinchDistance = Math.sqrt(dx * dx + dy * dy);
+        state.isPinching = (pinchDistance < 0.085);
+
+        /* Map normalized video coordinates to canvas aspect ratio */
+        const videoElement = document.getElementById('webcamVideo');
+        if (videoElement && videoElement.readyState >= 2 && state.canvas) {
+          const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+          const canvasRatio = state.canvas.width / state.canvas.height;
+          let drawW = state.canvas.width;
+          let drawH = state.canvas.height;
+          let offsetX = 0;
+          let offsetY = 0;
+
+          if (canvasRatio > videoRatio) {
+            drawH = state.canvas.width / videoRatio;
+            offsetY = (state.canvas.height - drawH) / 2;
+          } else {
+            drawW = state.canvas.height * videoRatio;
+            offsetX = (state.canvas.width - drawW) / 2;
+          }
+
+          // Invert X coordinate due to mirrored camera output
+          state.rawHand.x = state.canvas.width - (indexTip.x * drawW + offsetX);
+          state.rawHand.y = indexTip.y * drawH + offsetY;
+        } else {
+          state.rawHand.x = (1 - indexTip.x) * state.canvas.width;
+          state.rawHand.y = indexTip.y * state.canvas.height;
+        }
+
+        if (badge) {
+          badge.className = "px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 flex items-center gap-1";
+          badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-ping"></span><span>พบมือแล้ว (${state.isPinching ? 'จีบนิ้ว 🤌' : 'พร้อมหยิบ 🖐️'})</span>`;
+        }
+      } else {
+        state.handDetected = false;
+        state.isPinching = false;
+        if (badge) {
+          badge.className = "px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1";
+          badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500 inline-block"></span><span>ไม่พบมือ (ใช้เมาส์ลากได้)</span>`;
+        }
+      }
+    }
+
+    /* ==========================================================================
+       SECTION 4: CAMERA STREAM MANAGEMENT
+       ========================================================================== */
+
+    async function requestCameraAndStart() {
+      initAudio();
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showCameraError("เบราว์เซอร์หรือสภาพแวดล้อมนี้ไม่รองรับการเข้าถึงกล้อง");
+        return;
+      }
+
+      const videoElement = document.getElementById('webcamVideo');
+      
+      try {
+        if (!state.hands) {
+          initHandTracking();
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } 
+        });
+        videoElement.srcObject = stream;
+        await videoElement.play();
+
+        state.camera = new Camera(videoElement, {
+          onFrame: async () => {
+            if (state.gameStatus === 'PLAYING' && state.cameraActive) {
+              await state.hands.send({ image: videoElement });
+            }
+          },
+          width: 1280,
+          height: 720
+        });
+
+        await state.camera.start();
+        state.cameraActive = true;
+        state.controlMode = 'AR';
+
+        document.getElementById('startModal').classList.add('hidden');
+        document.getElementById('fallbackBg').classList.add('opacity-0');
+        
+        startGamePlay();
+
+      } catch (err) {
+        console.warn("Webcam access error, reverting to mouse mode:", err);
+        showCameraError("การเข้าถึงกล้องถูกปฏิเสธ หรือเบราว์เซอร์บล็อกสิทธิ์กล้อง");
+      }
+    }
+
+    function toggleCamera() {
+      if (state.cameraActive) {
+        state.cameraActive = false;
+        document.getElementById('fallbackBg').classList.remove('opacity-0');
+      } else {
+        requestCameraAndStart();
+      }
+    }
+
+    function showCameraError(msg) {
+      document.getElementById('cameraErrorMessage').innerText = msg;
+      document.getElementById('cameraErrorModal').classList.remove('hidden');
+    }
+
+    function switchToMouseMode() {
+      document.getElementById('cameraErrorModal').classList.add('hidden');
+      document.getElementById('startModal').classList.add('hidden');
+      state.controlMode = 'MOUSE';
+      state.cameraActive = false;
+      document.getElementById('fallbackBg').classList.remove('opacity-0');
+      startGamePlay();
+    }
+
+    /* ==========================================================================
+       SECTION 5: GAMEPLAY PHYSICS, CARDS & POWERUPS
+       ========================================================================== */
+
+    function spawnNewCard() {
+      const randomIdx = Math.floor(Math.random() * SCRATCH_BLOCKS.length);
+      const blockData = SCRATCH_BLOCKS[randomIdx];
+
+      const cardWidth = Math.min(270, state.canvas.width * 0.38);
+      const cardHeight = 80;
+
+      const startX = Math.max(20, Math.min(state.canvas.width - cardWidth - 20, 
+        (state.canvas.width / 2 - cardWidth / 2) + (Math.random() * 180 - 90)
+      ));
+
+      // Calculate speed based on current stage & slow motion powerup
+      let speed = 1.6 + (state.currentStage * 0.4);
+      if (state.activePowerups.slowTimer > 0) speed *= 0.5;
+
+      state.currentCard = {
+        ...blockData,
+        x: startX,
+        y: -cardHeight,
+        width: cardWidth,
+        height: cardHeight,
+        speed: speed,
+        isGrabbed: false,
+        grabOffsetX: 0,
+        grabOffsetY: 0
+      };
+
+      // Random chance to spawn a powerup item (20% probability)
+      if (!state.activePowerupItem && Math.random() < 0.22) {
+        spawnPowerupItem();
+      }
+    }
+
+    function spawnPowerupItem() {
+      const pData = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+      state.activePowerupItem = {
+        ...pData,
+        x: Math.random() * (state.canvas.width - 100) + 50,
+        y: -50,
+        radius: 26,
+        speed: 1.2
+      };
+    }
+
+    function updatePhysics() {
+      if (state.gameStatus !== 'PLAYING') return;
+
+      // Update Powerup Durations
+      if (state.activePowerups.slowTimer > 0) state.activePowerups.slowTimer -= 0.016;
+      if (state.activePowerups.magnetTimer > 0) state.activePowerups.magnetTimer -= 0.016;
+      updatePowerupUI();
+
+      // Smooth Hand Tracking Movement
+      if (state.handDetected && state.controlMode === 'AR') {
+        state.smoothHand.x += (state.rawHand.x - state.smoothHand.x) * state.lerpFactor;
+        state.smoothHand.y += (state.rawHand.y - state.smoothHand.y) * state.lerpFactor;
+      }
+
+      const pointer = (state.controlMode === 'AR' && state.handDetected) 
+        ? state.smoothHand 
+        : mousePos;
+
+      // --- 1. Update Powerup Item Pickup ---
+      if (state.activePowerupItem) {
+        const item = state.activePowerupItem;
+        item.y += item.speed;
+
+        const dist = Math.hypot(pointer.x - item.x, pointer.y - item.y);
+        if (dist < item.radius + 20) {
+          activatePowerup(item.id);
+          createParticles(item.x, item.y, item.color, 12);
+          playSoundEffect('powerup');
+          setMascot('🥳', `เก็บไอเทม ${item.name}! ${item.desc}`);
+          state.activePowerupItem = null;
+        } else if (item.y > state.canvas.height + 50) {
+          state.activePowerupItem = null;
+        }
+      }
+
+      // --- 2. Update Card Logic ---
+      if (!state.currentCard) return;
+      const card = state.currentCard;
+
+      // Magnet Powerup Attraction
+      if (state.activePowerups.magnetTimer > 0 && !card.isGrabbed) {
+        const targetX = card.category === 'Motion' ? state.canvas.width * 0.25 : state.canvas.width * 0.75;
+        card.x += (targetX - card.x) * 0.04;
+      }
+
+      const isTouchOrOver = (
+        pointer.x >= card.x - 10 &&
+        pointer.x <= card.x + card.width + 10 &&
+        pointer.y >= card.y - 10 &&
+        pointer.y <= card.y + card.height + 10
+      );
+
+      // Trigger Grab upon Contact / Pinch
+      const grabTrigger = state.controlMode === 'AR' 
+        ? (isTouchOrOver || (state.isPinching && isTouchOrOver))
+        : (mousePos.isDown && isTouchOrOver);
+
+      if (grabTrigger && !card.isGrabbed) {
+        card.isGrabbed = true;
+        card.grabOffsetX = pointer.x - card.x;
+        card.grabOffsetY = pointer.y - card.y;
+        playSoundEffect('grab');
+      }
+
+      if (card.isGrabbed) {
+        // If hand released in Mouse mode or lost hand in AR mode
+        if (state.controlMode === 'MOUSE' && !mousePos.isDown) {
+          card.isGrabbed = false;
+        }
+
+        card.x = pointer.x - card.grabOffsetX;
+        card.y = pointer.y - card.grabOffsetY;
+        card.x = Math.max(10, Math.min(state.canvas.width - card.width - 10, card.x));
+
+        // Check Basket Collisions
+        const categoryHit = checkBasketCollision(card);
+        if (categoryHit) {
+          processAnswer(card, categoryHit);
+          return;
+        }
+      } else {
+        card.y += card.speed;
+
+        // Card fell off screen
+        if (card.y > state.canvas.height) {
+          resetCombo();
+          setMascot('🧐', 'การ์ดหลุดมือไปแล้ว! พยายามลากลงตะกร้าก่อนหล่นนะ');
+          spawnNewCard();
+        }
+      }
+
+      // Update Particles
+      updateParticles();
+    }
+
+    function activatePowerup(type) {
+      if (type === 'slow') {
+        state.activePowerups.slowTimer = 8;
+      } else if (type === 'magnet') {
+        state.activePowerups.magnetTimer = 6;
+      } else if (type === 'shield') {
+        state.activePowerups.shieldActive = true;
+      }
+    }
+
+    function updatePowerupUI() {
+      const container = document.getElementById('powerupStatusBar');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (state.activePowerups.slowTimer > 0) {
+        container.innerHTML += `<div class="px-2.5 py-1 rounded-xl bg-cyan-900/80 border border-cyan-400 text-cyan-200 text-xs font-bold flex items-center gap-1 animate-pulse">⏳ ชะลอเวลา (${Math.ceil(state.activePowerups.slowTimer)}s)</div>`;
+      }
+      if (state.activePowerups.magnetTimer > 0) {
+        container.innerHTML += `<div class="px-2.5 py-1 rounded-xl bg-pink-900/80 border border-pink-400 text-pink-200 text-xs font-bold flex items-center gap-1 animate-pulse">🧲 แม่เหล็ก (${Math.ceil(state.activePowerups.magnetTimer)}s)</div>`;
+      }
+      if (state.activePowerups.shieldActive) {
+        container.innerHTML += `<div class="px-2.5 py-1 rounded-xl bg-emerald-900/80 border border-emerald-400 text-emerald-200 text-xs font-bold flex items-center gap-1">🛡️ โล่ป้องกัน</div>`;
+      }
+    }
+
+    /* ==========================================================================
+       SECTION 6: BASKET COLLISION & SCORE SYSTEM
+       ========================================================================== */
+
+    function checkBasketCollision(card) {
+      const motionRect = document.getElementById('basketMotion').getBoundingClientRect();
+      const eventsRect = document.getElementById('basketEventsControl').getBoundingClientRect();
+
+      const cardRect = {
+        left: card.x,
+        right: card.x + card.width,
+        top: card.y,
+        bottom: card.y + card.height
+      };
+
+      const intersects = (rA, rB) => {
+        return !(rA.right < rB.left || rA.left > rB.right || rA.bottom < rB.top || rA.top > rB.bottom);
+      };
+
+      if (intersects(cardRect, motionRect)) return 'Motion';
+      if (intersects(cardRect, eventsRect)) return 'EventsControl';
+      return null;
+    }
+
+    function processAnswer(card, selectedCategory) {
+      const isCorrect = (card.category === selectedCategory);
+
+      if (isCorrect) {
+        state.combo++;
+        if (state.combo > state.maxCombo) state.maxCombo = state.combo;
+
+        const multiplier = Math.min(5, 1 + Math.floor(state.combo / 2));
+        const earnedPoints = 10 * multiplier;
+        
+        state.score += earnedPoints;
+        state.coins += 5;
+        state.correctCount++;
+        state.missionCurrent++;
+
+        playSoundEffect('correct');
+        if (state.combo >= 2) playSoundEffect('combo');
+
+        createParticles(card.x + card.width / 2, card.y + card.height / 2, '#10B981', 20);
+        addFloatingText(`+${earnedPoints}! ${multiplier > 1 ? `(x${multiplier} Combo)` : ''}`, card.x + card.width / 2, card.y, '#34D399');
+
+        const praiseWords = ['เยี่ยมมาก!', 'สุดยอด!', 'แม่นยำมาก!', 'เก่งมาก!', 'คอมโบต่อเนื่อง!'];
+        const randomPraise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+        setMascot('🥳', `${randomPraise} ${card.name} อยู่ในหมวด ${card.category}`);
+
+        // Check Level Mission Goal Completion
+        if (state.missionCurrent >= state.missionTarget) {
+          triggerStageClear();
+          return;
+        }
+
+        // Randomly trigger Bug Quiz Challenge every 5 correct answers
+        if (state.correctCount > 0 && state.correctCount % 5 === 0) {
+          triggerBugQuiz();
+          return;
+        }
+
+      } else {
+        // Handle Wrong Category Drop
+        if (state.activePowerups.shieldActive) {
+          state.activePowerups.shieldActive = false;
+          playSoundEffect('powerup');
+          setMascot('🛡️', 'โล่ป้องกันช่วยสลายความผิดพลาด! คอมโบยังไม่หาย');
+          addFloatingText('Shield Blocked!', card.x + card.width / 2, card.y, '#10B981');
+        } else {
+          state.wrongCount++;
+          resetCombo();
+          playSoundEffect('wrong');
+          
+          const correctCatName = card.category === 'Motion' ? 'Motion (หมวดเคลื่อนที่)' : 'Events & Control (หมวดเหตุการณ์และควบคุม)';
+          setMascot('🧐', `เกือบถูกแล้ว! ${card.name} ต้องอยู่หมวด ${correctCatName}`);
+          createParticles(card.x + card.width / 2, card.y + card.height / 2, '#F43F5E', 15);
+        }
+      }
+
+      updateHUD();
+      spawnNewCard();
+    }
+
+    function resetCombo() {
+      state.combo = 0;
+      updateHUD();
+    }
+
+    function updateHUD() {
+      document.getElementById('scoreText').innerText = state.score;
+      document.getElementById('coinText').innerText = state.coins;
+      document.getElementById('missionProgressText').innerText = `${state.missionCurrent}/${state.missionTarget}`;
+
+      const comboBadge = document.getElementById('comboBadge');
+      if (state.combo >= 2) {
+        comboBadge.classList.remove('hidden');
+        document.getElementById('comboText').innerText = `Combo x${state.combo}`;
+      } else {
+        comboBadge.classList.add('hidden');
+      }
+    }
+
+    /* ==========================================================================
+       SECTION 7: BUG QUIZ & STAGE PROGRESSION
+       ========================================================================== */
+
+    function triggerBugQuiz() {
+      state.gameStatus = 'BUG_QUIZ';
+      playSoundEffect('powerup');
+
+      const quiz = BUG_QUIZZES[Math.floor(Math.random() * BUG_QUIZZES.length)];
+      document.getElementById('bugQuestionTitle').innerText = quiz.question;
+
+      const optsContainer = document.getElementById('bugQuizOptions');
+      optsContainer.innerHTML = '';
+
+      quiz.options.forEach((opt) => {
+        const btn = document.createElement('button');
+        btn.className = "w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-semibold text-left transition flex items-center justify-between";
+        btn.innerHTML = `<span>${opt.text}</span><span class="text-xs text-slate-400">เลือก</span>`;
+        btn.onclick = () => answerBugQuiz(opt.correct);
+        optsContainer.appendChild(btn);
+      });
+
+      document.getElementById('bugQuizModal').classList.remove('hidden');
+    }
+
+    function answerBugQuiz(isCorrect) {
+      document.getElementById('bugQuizModal').classList.add('hidden');
+      state.gameStatus = 'PLAYING';
+
+      if (isCorrect) {
+        state.score += 50;
+        state.coins += 10;
+        playSoundEffect('correct');
+        setMascot('🥳', 'กำจัดเจ้าบั๊กสำเร็จ! รับโบนัส +50 คะแนน!');
+        addFloatingText('BUG DEFEATED! +50', state.canvas.width / 2, state.canvas.height / 2, '#F59E0B');
+      } else {
+        playSoundEffect('wrong');
+        setMascot('🧐', 'เจ้าบั๊กหนีไปได้! มาลุยจัดบล็อกกันต่อ');
+      }
+
+      updateHUD();
+      spawnNewCard();
+    }
+
+    function triggerStageClear() {
+      if (state.currentStage < 3) {
+        state.currentStage++;
+        state.missionCurrent = 0;
+        state.missionTarget = 3 + state.currentStage * 2;
+        
+        // Update Environment Theme
+        const app = document.getElementById('appContainer');
+        app.className = app.className.replace(/theme-\w+/, `theme-${state.currentStage === 2 ? 'cyber' : 'space'}`);
+        
+        const stageNames = ['', 'ด่าน 1: Digital Lab', 'ด่าน 2: Cyber City', 'ด่าน 3: Space Odyssey'];
+        document.getElementById('stageBadge').innerText = stageNames[state.currentStage];
+        document.getElementById('missionDescText').innerText = `ผ่านด่าน! จัดบล็อกให้ครบ ${state.missionTarget} ชิ้น`;
+
+        setMascot('🚀', `ผ่านด่านแล้ว! ยินดีต้อนรับสู่ ${stageNames[state.currentStage]}`);
+        playSoundEffect('powerup');
+      } else {
+        endGame();
+      }
+    }
+
+    function setMascot(face, msg) {
+      state.mascot.face = face;
+      state.mascot.message = msg;
+    }
+
+    /* ==========================================================================
+       SECTION 8: CANVAS GRAPHICS & PARTICLE ENGINE
+       ========================================================================== */
+
+    function createParticles(x, y, color, count = 15) {
+      for (let i = 0; i < count; i++) {
+        state.particles.push({
+          x: x,
+          y: y,
+          vx: (Math.random() - 0.5) * 8,
+          vy: (Math.random() - 0.5) * 8,
+          radius: Math.random() * 4 + 2,
+          color: color,
+          alpha: 1.0,
+          life: 1.0
+        });
+      }
+    }
+
+    function addFloatingText(text, x, y, color = '#F59E0B') {
+      state.floatingTexts.push({
+        text: text,
+        x: x,
+        y: y,
+        vy: -2,
+        alpha: 1.0,
+        color: color
+      });
+    }
+
+    function updateParticles() {
+      for (let i = state.particles.length - 1; i >= 0; i--) {
+        const p = state.particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.025;
+        if (p.alpha <= 0) state.particles.splice(i, 1);
+      }
+
+      for (let i = state.floatingTexts.length - 1; i >= 0; i--) {
+        const ft = state.floatingTexts[i];
+        ft.y += ft.vy;
+        ft.alpha -= 0.02;
+        if (ft.alpha <= 0) state.floatingTexts.splice(i, 1);
+      }
+    }
+
+    function drawScratchBlock(ctx, card) {
+      ctx.save();
+
+      ctx.shadowColor = card.isGrabbed ? 'rgba(59, 130, 246, 0.8)' : 'rgba(0, 0, 0, 0.4)';
+      ctx.shadowBlur = card.isGrabbed ? 20 : 8;
+      ctx.shadowOffsetY = card.isGrabbed ? 6 : 3;
+
+      ctx.fillStyle = card.isGrabbed ? '#3B82F6' : card.color;
+      
+      const r = 16;
+      const x = card.x;
+      const y = card.y;
+      const w = card.width;
+      const h = card.height;
+
+      // Rounded Scratch Puzzle Shape
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.lineWidth = card.isGrabbed ? 3 : 2;
+      ctx.strokeStyle = card.isGrabbed ? '#F59E0B' : 'rgba(255, 255, 255, 0.3)';
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+
+      // Icon & Name
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 20px Fredoka, Prompt, sans-serif';
+      ctx.fillText(card.icon, x + 14, y + 34);
+
+      ctx.font = '600 14px Prompt, sans-serif';
+      ctx.fillText(card.name, x + 46, y + 33);
+
+      // Function Description
+      ctx.font = '500 11px Prompt, sans-serif';
+      ctx.fillStyle = 'rgba(226, 232, 240, 0.9)';
+      ctx.fillText(card.desc, x + 46, y + 54);
+
+      ctx.restore();
+    }
+
+    function drawMascotOverlay(ctx) {
+      const bw = Math.min(360, state.canvas.width - 40);
+      const bh = 55;
+      const bx = (state.canvas.width - bw) / 2;
+      const by = 80;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.5)';
+      ctx.lineWidth = 1.5;
+
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, 16);
+      ctx.fill();
+      ctx.stroke();
+
+      // Mascot Face Icon
+      ctx.font = '24px Fredoka';
+      ctx.fillText(state.mascot.face, bx + 12, by + 36);
+
+      // Mascot Speech
+      ctx.font = '500 11px Prompt';
+      ctx.fillStyle = '#E2E8F0';
+      ctx.fillText('พี่โรบี้:', bx + 46, by + 22);
+      ctx.fillStyle = '#67E8F9';
+      ctx.fillText(state.mascot.message, bx + 46, by + 40, bw - 60);
+
+      ctx.restore();
+    }
+
+    function renderLoop() {
+      const canvas = state.canvas;
+      const ctx = state.ctx;
+      const videoElement = document.getElementById('webcamVideo');
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Render Webcam Feed mirrored on canvas
+      if (state.cameraActive && videoElement && videoElement.readyState >= 2) {
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        
+        const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+        const canvasRatio = canvas.width / canvas.height;
+        let drawW = canvas.width;
+        let drawH = canvas.height;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        if (canvasRatio > videoRatio) {
+          drawH = canvas.width / videoRatio;
+          offsetY = (canvas.height - drawH) / 2;
+        } else {
+          drawW = canvas.height * videoRatio;
+          offsetX = (canvas.width - drawW) / 2;
+        }
+
+        ctx.drawImage(videoElement, offsetX, offsetY, drawW, drawH);
+        ctx.restore();
+      }
+
+      // 2. Gameplay Elements Render
+      if (state.gameStatus === 'PLAYING') {
+        updatePhysics();
+
+        // Draw Active Falling Powerup
+        if (state.activePowerupItem) {
+          const item = state.activePowerupItem;
+          ctx.save();
+          ctx.fillStyle = item.color;
+          ctx.beginPath();
+          ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          ctx.font = '18px Fredoka';
+          ctx.textAlign = 'center';
+          ctx.fillText(item.icon, item.x, item.y + 6);
+          ctx.restore();
+        }
+
+        // Draw Scratch Block Card
+        if (state.currentCard) {
+          drawScratchBlock(ctx, state.currentCard);
+        }
+
+        // Draw Mascot Overlay Box
+        drawMascotOverlay(ctx);
+
+        // Draw Particles & Floating Text Pops
+        state.particles.forEach(p => {
+          ctx.save();
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        });
+
+        state.floatingTexts.forEach(ft => {
+          ctx.save();
+          ctx.globalAlpha = ft.alpha;
+          ctx.font = 'bold 18px Prompt, sans-serif';
+          ctx.fillStyle = ft.color;
+          ctx.textAlign = 'center';
+          ctx.fillText(ft.text, ft.x, ft.y);
+          ctx.restore();
+        });
+
+        // Draw AR Hand / Pinch Cursor Visualizer
+        const pointer = (state.controlMode === 'AR' && state.handDetected)
+          ? state.smoothHand
+          : mousePos;
+
+        if (state.handDetected || state.controlMode === 'MOUSE') {
+          ctx.save();
+          ctx.fillStyle = state.isPinching ? '#F59E0B' : '#06B6D4';
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(pointer.x, pointer.y, state.isPinching ? 10 : 14, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // Outer Laser Targeting Ring
+          ctx.strokeStyle = state.isPinching ? 'rgba(245, 158, 11, 0.6)' : 'rgba(6, 182, 212, 0.5)';
+          ctx.beginPath();
+          ctx.arc(pointer.x, pointer.y, 24, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      requestAnimationFrame(renderLoop);
+    }
+
+    /* ==========================================================================
+       SECTION 9: GAME LIFECYCLE & INPUT CONTROLS
+       ========================================================================== */
+
+    function startGamePlay() {
+      state.gameStatus = 'PLAYING';
+      state.score = 0;
+      state.coins = 0;
+      state.correctCount = 0;
+      state.wrongCount = 0;
+      state.combo = 0;
+      state.currentStage = 1;
+      state.timeLeft = 60;
+      state.missionCurrent = 0;
+      state.missionTarget = 3;
+
+      updateHUD();
+      document.getElementById('startModal').classList.add('hidden');
+      document.getElementById('summaryModal').classList.add('hidden');
+
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      state.timerInterval = setInterval(() => {
+        if (state.gameStatus !== 'PLAYING') return;
+
+        state.timeLeft--;
+        document.getElementById('timerText').innerText = state.timeLeft;
+        
+        const progressElem = document.getElementById('timeProgressBar');
+        if (progressElem) {
+          progressElem.style.width = `${(state.timeLeft / 60) * 100}%`;
+        }
+
+        if (state.timeLeft <= 0) {
+          endGame();
+        }
+      }, 1000);
+
+      spawnNewCard();
+    }
+
+    function togglePause() {
+      if (state.gameStatus === 'PLAYING') {
+        state.gameStatus = 'PAUSED';
+        document.getElementById('pauseModal').classList.remove('hidden');
+      } else if (state.gameStatus === 'PAUSED') {
+        state.gameStatus = 'PLAYING';
+        document.getElementById('pauseModal').classList.add('hidden');
+      }
+    }
+
+    function endGame() {
+      state.gameStatus = 'GAMEOVER';
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      playSoundEffect('gameover');
+
+      const totalAttempts = state.correctCount + state.wrongCount;
+      const accuracy = totalAttempts > 0 ? Math.round((state.correctCount / totalAttempts) * 100) : 0;
+
+      document.getElementById('finalScore').innerText = state.score;
+      document.getElementById('finalCorrect').innerText = state.correctCount;
+      document.getElementById('finalCoins').innerText = state.coins;
+      document.getElementById('finalAccuracy').innerText = `${accuracy}%`;
+
+      const starContainer = document.getElementById('starRatingContainer');
+      if (state.score >= 120) {
+        starContainer.innerText = '⭐⭐⭐';
+      } else if (state.score >= 60) {
+        starContainer.innerText = '⭐⭐';
+      } else {
+        starContainer.innerText = '⭐';
+      }
+
+      document.getElementById('summaryModal').classList.remove('hidden');
+    }
+
+    function confirmRestart() {
+      if (confirm('คุณต้องการเริ่มด่านนี้ใหม่ใช่หรือไม่?')) {
+        document.getElementById('pauseModal').classList.add('hidden');
+        startGamePlay();
+      }
+    }
+
+    function resetToMainMenu() {
+      state.gameStatus = 'START';
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      document.getElementById('summaryModal').classList.add('hidden');
+      document.getElementById('startModal').classList.remove('hidden');
+    }
+
+    function nextStageOrRestart() {
+      document.getElementById('summaryModal').classList.add('hidden');
+      startGamePlay();
+    }
+
+    function openTutorialModal() {
+      document.getElementById('tutorialModal').classList.remove('hidden');
+    }
+
+    function closeTutorialModal() {
+      document.getElementById('tutorialModal').classList.add('hidden');
+    }
+
+    /* Mouse & Touch Pointer Listeners */
+    const mousePos = { x: 0, y: 0, isDown: false };
+
+    function setupInputEvents() {
+      const canvas = state.canvas;
+
+      const updatePointerPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        mousePos.x = (clientX - rect.left) * (canvas.width / rect.width);
+        mousePos.y = (clientY - rect.top) * (canvas.height / rect.height);
+      };
+
+      canvas.addEventListener('mousemove', updatePointerPos);
+      canvas.addEventListener('mousedown', (e) => {
+        updatePointerPos(e);
+        mousePos.isDown = true;
+      });
+      window.addEventListener('mouseup', () => {
+        mousePos.isDown = false;
+        if (state.currentCard && state.controlMode === 'MOUSE') {
+          state.currentCard.isGrabbed = false;
+        }
+      });
+
+      canvas.addEventListener('touchstart', (e) => {
+        updatePointerPos(e);
+        mousePos.isDown = true;
+      }, { passive: true });
+
+      canvas.addEventListener('touchmove', updatePointerPos, { passive: true });
+
+      canvas.addEventListener('touchend', () => {
+        mousePos.isDown = false;
+        if (state.currentCard && state.controlMode === 'MOUSE') {
+          state.currentCard.isGrabbed = false;
+        }
+      });
+    }
+
+    function resizeCanvas() {
+      if (state.canvas) {
+        state.canvas.width = window.innerWidth;
+        state.canvas.height = window.innerHeight;
+      }
+    }
+
+    window.addEventListener('load', () => {
+      state.canvas = document.getElementById('gameCanvas');
+      state.ctx = state.canvas.getContext('2d');
+
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      setupInputEvents();
+      requestAnimationFrame(renderLoop);
+    });
+  </script>
+</body>
+</html>
